@@ -3,15 +3,23 @@ package com.nguyen.memory
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.provider.MediaStore
+import android.text.Editable
+import android.text.InputFilter
+import android.text.TextWatcher
 import android.util.Log
 import android.view.MenuItem
 import android.widget.Toast
 import androidx.recyclerview.widget.GridLayoutManager
 import com.nguyen.memory.databinding.ActivityCreateBinding
 import drawable.EXTRA_BOARD_SIZE
+import java.io.ByteArrayOutputStream
 
 class CreateActivity : AppCompatActivity() {
 
@@ -20,13 +28,15 @@ class CreateActivity : AppCompatActivity() {
         const val RC_PICK_PHOTO = 1600
         const val RC_READ_EXTERNAL_STORAGE = 1776
         const val READ_EXTERNAL_STORAGE = android.Manifest.permission.READ_EXTERNAL_STORAGE
+        const val GAME_NAME_LENGTH_MIN = 3
+        const val GAME_NAME_LENGTH_MAX = 14
     }
 
     lateinit var binding: ActivityCreateBinding
     lateinit var boardSize: BoardSize
     lateinit var adapter: ImagePickerAdapter
-    var numImages = -1
-    val imageUris = mutableListOf<Uri>()
+    var numImagesRequired = -1
+    val selectedUris = mutableListOf<Uri>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,13 +49,31 @@ class CreateActivity : AppCompatActivity() {
 
         // change action bar title according to the extra board size received
         boardSize = intent.getSerializableExtra(EXTRA_BOARD_SIZE) as BoardSize
-        numImages = boardSize.getNumPairs()
-        supportActionBar?.title = "Choose pics (0 / $numImages)"
+        numImagesRequired = boardSize.getNumPairs()
+        supportActionBar?.title = "Choose pics (0 / $numImagesRequired)"
+
+        binding.btnSave.setOnClickListener {
+            saveToFirebase()
+        }
+
+        // restrict the game name to at most 14 characters
+        binding.etGameName.filters = arrayOf(InputFilter.LengthFilter(GAME_NAME_LENGTH_MAX))
+        binding.etGameName.addTextChangedListener(object: TextWatcher {
+            override fun beforeTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {
+            }
+
+            override fun onTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {
+            }
+
+            override fun afterTextChanged(p0: Editable?) {
+                binding.btnSave.isEnabled = shouldEnableSave()
+            }
+        })
 
         // set up RecyclerView
         binding.rvImagePicker.setHasFixedSize(true)
         binding.rvImagePicker.layoutManager = GridLayoutManager(this, boardSize.getWidth())
-        adapter = ImagePickerAdapter(this, imageUris, boardSize, object: ImagePickerAdapter.ImageClickListener {
+        adapter = ImagePickerAdapter(this, selectedUris, boardSize, object: ImagePickerAdapter.ImageClickListener {
             override fun onPlaceholderClicked() {
                 if (isPermissionGranted(this@CreateActivity, READ_EXTERNAL_STORAGE)) {
                     launchPhotoIntent()
@@ -78,17 +106,17 @@ class CreateActivity : AppCompatActivity() {
                 Log.i(TAG, "clipData numImages ${clipData.itemCount}: $clipData")
                 for (i in 0 until clipData.itemCount) {
                     val clipItem = clipData.getItemAt(i)
-                    if (imageUris.size < numImages) {
-                        imageUris.add(clipItem.uri)
+                    if (selectedUris.size < numImagesRequired) {
+                        selectedUris.add(clipItem.uri)
                     }
                 }
             } else if (selectedUri != null) {
                 Log.i(TAG, "data: $selectedUri")
-                imageUris.add(selectedUri)
+                selectedUris.add(selectedUri)
             }
             adapter.notifyDataSetChanged()
 
-            supportActionBar?.title = "Choose pics (${imageUris.size} / $numImages)"
+            supportActionBar?.title = "Choose pics (${selectedUris.size} / $numImagesRequired)"
             binding.btnSave.isEnabled = shouldEnableSave()
         }
     }
@@ -104,9 +132,35 @@ class CreateActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
+    private fun saveToFirebase() {
+        Log.i(TAG, "saveToFirebase")
+        for ((i, imageUri) in selectedUris.withIndex()) {
+            val imageByteArray = getImageByteArray(imageUri)
+        }
+    }
+
+    private fun getImageByteArray(imageUri: Uri): ByteArray {
+        // extract bitmap depending on which Android version
+        val originalBitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val source = ImageDecoder.createSource(contentResolver, imageUri)
+            ImageDecoder.decodeBitmap(source)
+        } else {
+            MediaStore.Images.Media.getBitmap(contentResolver, imageUri)
+        }
+
+        Log.i(TAG, "Original width: ${originalBitmap.width} and height: ${originalBitmap.height}")
+        val scaledBitmap = BitmapScaler.scaleToFitHeight(originalBitmap, 250)
+        Log.i(TAG, "Scaled width: ${scaledBitmap.width} and height: ${scaledBitmap.height}")
+
+        val byteArrayStream = ByteArrayOutputStream()
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 60, byteArrayStream)
+        return byteArrayStream.toByteArray()
+    }
+
     private fun shouldEnableSave(): Boolean {
-        // check if we should enable the Save button
-        return true
+        // button should be enabled only if the number of selected images equals the number required,
+        // and the game name is not blank and is at least 3 characters long
+        return selectedUris.size == numImagesRequired && binding.etGameName.text.isNotBlank() && binding.etGameName.text.length >= GAME_NAME_LENGTH_MIN
     }
 
     private fun launchPhotoIntent() {
