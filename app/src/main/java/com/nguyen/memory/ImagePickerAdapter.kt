@@ -3,7 +3,6 @@ package com.nguyen.memory
 import android.content.Context
 import android.net.Uri
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.nguyen.memory.databinding.CardImageBinding

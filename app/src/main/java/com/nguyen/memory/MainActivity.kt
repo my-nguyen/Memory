@@ -3,7 +3,7 @@ package com.nguyen.memory
 import android.animation.ArgbEvaluator
 import android.app.Activity
 import android.content.Intent
-import androidx.appcompat.app.AppCompatActivity
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -11,8 +11,10 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
+import com.github.jinatonic.confetti.CommonConfetti
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -255,6 +257,10 @@ class MainActivity : AppCompatActivity() {
                 binding.tvNumPairs.text = "Pairs: ${memoryGame.numPairsFound} / ${boardSize.getNumPairs()}"
                 if (memoryGame.won()) {
                     Snackbar.make(binding.root, "You won! Congratulations.", Snackbar.LENGTH_LONG).show()
+
+                    // show confetti
+                    val colors = intArrayOf(Color.YELLOW, Color.GREEN, Color.MAGENTA)
+                    CommonConfetti.rainingConfetti(binding.root, colors).oneShot()
                 }
             }
             binding.tvNumMoves.text = "Moves: ${memoryGame.getNumMoves()}"

@@ -35,7 +35,7 @@ class MemoryBoardAdapter(val context: Context, val boardSize: BoardSize, val car
                     binding.imageButton.setImageResource(card.identifier)
                 }
             } else {
-                binding.imageButton.setImageResource(R.drawable.ic_launcher_background)
+                binding.imageButton.setImageResource(R.drawable.bamboo)
             }
 
             // adjust the card opacity and set background color to gray if the card is matched
