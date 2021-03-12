@@ -2,7 +2,7 @@ package com.nguyen.memory
 
 import drawable.DEFAULT_ICONS
 
-class MemoryGame(val boardSize: BoardSize) {
+class MemoryGame(val boardSize: BoardSize, val customImages: List<String>?) {
 
     val cards: List<MemoryCard>
     var numPairsFound = 0
@@ -10,12 +10,17 @@ class MemoryGame(val boardSize: BoardSize) {
     var numCardFlips = 0
 
     init {
-        // shuffle the list of 12 icons before selecting a number equaling the number of pairs
-        val chosenImages = DEFAULT_ICONS.shuffled().take(boardSize.getNumPairs())
-        // clone the selected icons and shuffle again
-        val randomImages = (chosenImages + chosenImages).shuffled()
-        // convert the selected icons into a list of MemoryCard's
-        cards = randomImages.map { MemoryCard(it) }
+        if (customImages == null) {
+            // shuffle the list of 12 icons before selecting a number equaling the number of pairs
+            val chosenImages = DEFAULT_ICONS.shuffled().take(boardSize.getNumPairs())
+            // clone the selected icons and shuffle again
+            val randomImages = (chosenImages + chosenImages).shuffled()
+            // convert the selected icons into a list of MemoryCard's
+            cards = randomImages.map { MemoryCard(it) }
+        } else {
+            val randomImages = (customImages + customImages).shuffled()
+            cards = randomImages.map { MemoryCard(it.hashCode(), it) }
+        }
     }
 
     fun flipCard(position: Int): Boolean {

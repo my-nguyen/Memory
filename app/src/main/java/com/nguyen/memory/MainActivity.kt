@@ -1,6 +1,7 @@
 package com.nguyen.memory
 
 import android.animation.ArgbEvaluator
+import android.app.Activity
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -13,9 +14,14 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 import com.nguyen.memory.databinding.ActivityMainBinding
 import com.nguyen.memory.databinding.DialogBoardSizeBinding
+import com.nguyen.memory.databinding.DialogDownloadBoardBinding
+import com.squareup.picasso.Picasso
 import drawable.EXTRA_BOARD_SIZE
+import drawable.EXTRA_GAME_NAME
 
 class MainActivity : AppCompatActivity() {
 
@@ -27,7 +33,12 @@ class MainActivity : AppCompatActivity() {
     lateinit var binding: ActivityMainBinding
     lateinit var memoryGame: MemoryGame
     lateinit var adapter: MemoryBoardAdapter
+
     var boardSize = BoardSize.EASY
+    var gameName: String?=null
+    var images: List<String>?=null
+
+    val firestore = Firebase.firestore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,16 +83,71 @@ class MainActivity : AppCompatActivity() {
                 showCreationDialog()
                 return true
             }
+            R.id.mi_download -> {
+                showDownloadDialog()
+                return true
+            }
         }
         return super.onOptionsItemSelected(item)
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == RC_CREATE && resultCode == Activity.RESULT_OK) {
+            val name = data?.getStringExtra(EXTRA_GAME_NAME)
+            if (name == null) {
+                Log.e(TAG, "Got null game name from CreateActivity")
+            } else {
+                downloadGame(name)
+            }
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    private fun showDownloadDialog() {
+        val inflater = LayoutInflater.from(this)
+        val dialogBinding = DialogDownloadBoardBinding.inflate(inflater)
+        showAlertDialog("Fetch memory game", dialogBinding.root, View.OnClickListener {
+            // grab the text of the game name that the user wants to download
+            val gameToDownload = dialogBinding.etDownloadGame.text.toString().trim()
+            downloadGame(gameToDownload)
+        })
+    }
+
+    private fun downloadGame(name: String) {
+        firestore.collection("games")
+                .document(name)
+                .get()
+                .addOnSuccessListener { document ->
+                    val downloadedImages = document.toObject(Images::class.java)
+                    if (downloadedImages?.images == null) {
+                        Log.e(TAG, "Invalid custom game data from Firestore")
+                        Snackbar.make(binding.root, "Sorry, we couldn't find any such game '$name", Snackbar.LENGTH_LONG).show()
+                        return@addOnSuccessListener
+                    } else {
+                        val numCards = downloadedImages.images.size * 2
+                        boardSize = BoardSize.getByValue(numCards)
+                        images = downloadedImages.images
+                        // prefetch all images (without showing) to save download time
+                        for (imageUrl in downloadedImages.images) {
+                            Picasso.get()
+                                    .load(imageUrl)
+                                    .fetch()
+                        }
+                        Snackbar.make(binding.root, "You're now playing '$name'", Snackbar.LENGTH_LONG).show()
+                        gameName = name
+                        setupBoard()
+                    }
+                }.addOnFailureListener { exception ->
+                    Log.e(TAG, "Exception when retrieving game", exception)
+                }
+    }
+
     private fun showCreationDialog() {
         val inflater = LayoutInflater.from(this)
-        val binding = DialogBoardSizeBinding.inflate(inflater)
-        showAlertDialog("Create your own memory board", binding.root, View.OnClickListener {
+        val dialogBinding = DialogBoardSizeBinding.inflate(inflater)
+        showAlertDialog("Create your own memory board", dialogBinding.root, View.OnClickListener {
             // save the newly selected choice of board size
-            val selectedSize = when (binding.radioGroup.checkedRadioButtonId) {
+            val selectedSize = when (dialogBinding.radioGroup.checkedRadioButtonId) {
                 R.id.rb_easy -> BoardSize.EASY
                 R.id.rb_medium -> BoardSize.MEDIUM
                 else -> BoardSize.HARD
@@ -96,22 +162,27 @@ class MainActivity : AppCompatActivity() {
 
     private fun showNewSizeDialog() {
         val inflater = LayoutInflater.from(this)
-        val binding = DialogBoardSizeBinding.inflate(inflater)
+        val dialogBinding = DialogBoardSizeBinding.inflate(inflater)
 
         // fill dialog with the preselected radio button
         when (boardSize) {
-            BoardSize.EASY -> binding.radioGroup.check(R.id.rb_easy)
-            BoardSize.MEDIUM -> binding.radioGroup.check(R.id.rb_medium)
-            BoardSize.HARD -> binding.radioGroup.check(R.id.rb_hard)
+            BoardSize.EASY -> dialogBinding.radioGroup.check(R.id.rb_easy)
+            BoardSize.MEDIUM -> dialogBinding.radioGroup.check(R.id.rb_medium)
+            BoardSize.HARD -> dialogBinding.radioGroup.check(R.id.rb_hard)
         }
 
-        showAlertDialog("Choose new size", binding.root, View.OnClickListener {
+        showAlertDialog("Choose new size", dialogBinding.root, View.OnClickListener {
             // save the newly selected choice of board size
-            boardSize = when (binding.radioGroup.checkedRadioButtonId) {
+            boardSize = when (dialogBinding.radioGroup.checkedRadioButtonId) {
                 R.id.rb_easy -> BoardSize.EASY
                 R.id.rb_medium -> BoardSize.MEDIUM
                 else -> BoardSize.HARD
             }
+
+            // reset gameName and images before setupBoard()
+            gameName = null
+            images = null
+
             setupBoard()
         })
     }
@@ -127,6 +198,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupBoard() {
+        // change the title to reflect either the customized game name or the default app name
+        supportActionBar?.title = gameName ?: getString(R.string.app_name)
+
         // set up the 2 TextView's at the bottom
         when (boardSize) {
             BoardSize.EASY -> {
@@ -147,7 +221,7 @@ class MainActivity : AppCompatActivity() {
         val startColor = ContextCompat.getColor(this, R.color.color_progress_none)
         binding.tvNumPairs.setTextColor(startColor)
 
-        memoryGame = MemoryGame(boardSize)
+        memoryGame = MemoryGame(boardSize, images)
         adapter = MemoryBoardAdapter(this, boardSize, memoryGame.cards, object: MemoryBoardAdapter.CardClickListener {
             override fun onCardClicked(position: Int) {
                 flipCard(position)

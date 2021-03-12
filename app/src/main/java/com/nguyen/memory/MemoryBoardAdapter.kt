@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.nguyen.memory.databinding.MemoryCardBinding
+import com.squareup.picasso.Picasso
 
 class MemoryBoardAdapter(val context: Context, val boardSize: BoardSize, val cards: List<MemoryCard>,
                          val cardClickListener: CardClickListener) : RecyclerView.Adapter<MemoryBoardAdapter.ViewHolder>() {
@@ -24,8 +25,18 @@ class MemoryBoardAdapter(val context: Context, val boardSize: BoardSize, val car
     inner class ViewHolder(val binding: MemoryCardBinding): RecyclerView.ViewHolder(binding.root) {
         fun bind(position: Int) {
             val card = cards[position]
-            val resId = if (card.isFaceUp) card.identifier else R.drawable.ic_launcher_background
-            binding.imageButton.setImageResource(resId)
+            if (card.isFaceUp) {
+                if (card.imageUrl != null) {
+                    Picasso.get()
+                        .load(card.imageUrl)
+                        .placeholder(R.drawable.ic_image)
+                        .into(binding.imageButton)
+                } else {
+                    binding.imageButton.setImageResource(card.identifier)
+                }
+            } else {
+                binding.imageButton.setImageResource(R.drawable.ic_launcher_background)
+            }
 
             // adjust the card opacity and set background color to gray if the card is matched
             val alpha = if (card.isMatched) .4f else 1.0f
