@@ -35,11 +35,11 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // a hack shortcut to creating a new board game
+        /*// a hack shortcut to creating a new board game
         Intent(this, CreateActivity::class.java).apply {
-            putExtra(EXTRA_BOARD_SIZE, BoardSize.MEDIUM)
+            putExtra(EXTRA_BOARD_SIZE, BoardSize.EASY)
             startActivity(this)
-        }
+        }*/
 
         setupBoard()
     }

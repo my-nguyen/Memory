@@ -3,6 +3,7 @@ package drawable
 import com.nguyen.memory.R
 
 const val EXTRA_BOARD_SIZE = "EXTRA_BOARD_SIZE"
+const val EXTRA_GAME_NAME = "EXTRA_GAME_NAME"
 
 val DEFAULT_ICONS = listOf(
     R.drawable.ic_face,
